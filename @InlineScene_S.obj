@@ -1,0 +1,117 @@
+--[[
+MIT License
+Copyright (c) 2024 sigma-axis
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+https://mit-license.org/
+]]
+
+--
+-- VERSION: v1.00
+--
+
+--------------------------------
+
+@Inline Sceneここから
+--check0:アルファチャンネルあり,1
+--dialog:PI,_0=nil;
+obj.setoption("focus_mode", "fixed_size");
+obj.setoption("draw_state", true);
+local has_alpha = obj.check0;
+if _0 then
+	local c0 = _0[0]; _0 = nil;
+	if type(c0) == "boolean" then has_alpha = c0;
+	elseif type(c0) == "number" then has_alpha = c0 ~= 0 end
+end
+local ils = require "InlineScene_S";
+ils.Begin(has_alpha);
+
+@Inline Sceneここまで
+--track0:上余白,-2000,2000,0,1
+--track1:下余白,-2000,2000,0,1
+--track2:左余白,-2000,2000,0,1
+--track3:右余白,-2000,2000,0,1
+--check0:余白を除去,1
+--dialog:描画しない/chk,_1=1;ILシーンに保存/chk,_2=1;└ILシーン名,_3="scn1";PI,_0=nil;
+local ext_t, ext_b, ext_l, ext_r, crop, hide, save_name = obj.track0, obj.track1, obj.track2, obj.track3, obj.check0, _1 ~= 0, _2 ~= 0 and _3 or nil; _1 = nil; _2 = nil; _3 = nil;
+if _0 then
+	local c0, t0, t1, t2, t3 = _0[0], _0[1], _0[2], _0[3], _0[4]; _0 = nil;
+	if type(c0) == "boolean" then crop = c0;
+	elseif type(c0) == "number" then crop = c0 ~= 0 end
+	ext_t = tonumber(t0) or ext_t;
+	ext_b = tonumber(t1) or ext_b;
+	ext_l = tonumber(t2) or ext_l;
+	ext_r = tonumber(t3) or ext_r;
+end
+if hide then
+	obj.setoption("focus_mode", "fixed_size");
+	obj.setoption("draw_state", true);
+end
+local ils = require "InlineScene_S";
+ils.End(crop, ext_l, ext_t, ext_r, ext_b, save_name);
+
+@Inline Scene次へ
+--track0:上余白,-2000,2000,0,1
+--track1:下余白,-2000,2000,0,1
+--track2:左余白,-2000,2000,0,1
+--track3:右余白,-2000,2000,0,1
+--check0:アルファチャンネルあり,1
+--dialog:ILシーン名,_1="scn1";余白を除去/chk,_2=1;PI,_0=nil;
+obj.setoption("focus_mode", "fixed_size");
+obj.setoption("draw_state", true);
+local ext_t, ext_b, ext_l, ext_r, has_alpha, name, crop = obj.track0, obj.track1, obj.track2, obj.track3, obj.check0, _1, _2 ~= 0; _1 = nil; _2 = nil;
+if _0 then
+	local c0, t0, t1, t2, t3 = _0[0], _0[1], _0[2], _0[3], _0[4]; _0 = nil;
+	if type(c0) == "boolean" then has_alpha = c0;
+	elseif type(c0) == "number" then has_alpha = c0 ~= 0 end
+	ext_t = tonumber(t0) or ext_t;
+	ext_b = tonumber(t1) or ext_b;
+	ext_l = tonumber(t2) or ext_l;
+	ext_r = tonumber(t3) or ext_r;
+end
+local ils = require "InlineScene_S";
+ils.Next(crop, ext_l, ext_t, ext_r, ext_b, name, has_alpha);
+
+@Inline Scene終了
+--check0:有効動作時コンソールに出力,1
+obj.setoption("focus_mode", "fixed_size");
+obj.setoption("draw_state", true);
+local ils = require "InlineScene_S";
+ils.Quit(obj.check0);
+
+@Inline Sceneデータクリア
+--check0:全シーン分初期化,0
+local all = obj.check0;
+obj.setoption("focus_mode", "fixed_size");
+obj.setoption("draw_state", true);
+local ils = require "InlineScene_S";
+ils.clear_cache(nil, all);
+
+@Inline Scene読み出し
+--check0:位置や回転も復元,1
+--dialog:ILシーン名,_1="scn1";現在フレーム/chk,_2=0;PI,_0=nil;
+local restore_transform, name, curr_frame = obj.check0, _1, _2 ~= 0; _1 = nil; _2 = nil; _3 = nil;
+if _0 then
+	local c0 = _0[0]; _0 = nil;
+	if type(c0) == "boolean" then restore_transform = c0;
+	elseif type(c0) == "number" then restore_transform = c0 ~= 0 end
+end
+local ils = require "InlineScene_S";
+ils.recall(name, restore_transform, curr_frame);
