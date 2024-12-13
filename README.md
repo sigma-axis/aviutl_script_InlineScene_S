@@ -4,7 +4,7 @@
 
 集約した画像は名前を付けて管理していて，他のスクリプトからも利用可能．画像2つ以上を組み合わせるフィルタ効果の作成もできます．
 
-[ダウンロードはこちら．](https://github.com/sigma-axis/aviutl_script_InlineScene_S/releases)
+[ダウンロードはこちら．](https://github.com/sigma-axis/aviutl_script_InlineScene_S/releases) [紹介動画．](https://www.nicovideo.jp/watch/sm44422369)
 
 ![図形を複数まとめる動作デモ](https://github.com/user-attachments/assets/8c968434-1074-4b4c-bbf3-8561df6f35a2)
 
