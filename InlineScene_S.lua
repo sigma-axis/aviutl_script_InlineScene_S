@@ -1,6 +1,6 @@
 --[[
 MIT License
-Copyright (c) 2024 sigma-axis
+Copyright (c) 2024-2025 sigma-axis
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -24,7 +24,7 @@ https://mit-license.org/
 ]]
 
 --
--- VERSION: v1.00
+-- VERSION: v1.10-beta1
 --
 
 --------------------------------
@@ -84,7 +84,8 @@ ffi.cdef[[
 local get_render_cycle, get_is_playing,
 	get_scene_flags, set_scene_flags, get_obj_flags,
 	get_frame_buffer, get_obj_edit, get_buffer_stride,
-	get_current_frame, get_current_scene, get_scene_name, exfunc_bufcpy, exfunc_fill do
+	get_current_frame, get_current_scene, get_scene_name, exfunc_bufcpy, exfunc_fill,
+	determine_bounding_box do
 
 	local h_aviutl = ffi.cast("uintptr_t", ffi.C.GetModuleHandleA(nil));
 	-- check for the version of aviutl.exe. (may be unnecessary; as patch.aul exist.)
@@ -188,6 +189,15 @@ local get_render_cycle, get_is_playing,
 	-- uint32_t (*fill)(void* ycp, int32_t wo, int32_t ho, int32_t w, int32_t h, int16_t y, int16_t cb, int16_t cr, int16_t a, int32_t flag);
 	exfunc_fill = ffi.cast("uint32_t(__cdecl*)(void*, int32_t, int32_t, int32_t, int32_t, int16_t, int16_t, int16_t, int16_t, int32_t)",
 		exfunc2[0x48/4]);
+
+	-- take advantage of CropBlank_S.eef if exists.
+	if ffi.C.GetModuleHandleA("CropBlank_S.eef") ~= nil then
+		if not package.loaded.CropBlank_S then
+			package.preload.CropBlank_S = package.loadlib("CropBlank_S.eef", "luaopen_CropBlank_S");
+		end
+		local CropBlank_S = require "CropBlank_S";
+		determine_bounding_box = CropBlank_S.bounding_box;
+	end
 end
 
 ---現在オブジェクトが「オフスクリーン描画」が実行された後の状態で，座標関連の取り扱いが特殊な状況であるかどうかを取得する．
@@ -209,47 +219,48 @@ local function copy_obj_to_frame(w, h, has_alpha)
 end
 
 -- ref: https://github.com/Mr-Ojii/AviUtl-AutoClipping_M-Script
-local determine_bounding_box do
-	local function find_t(l, t, r, b, buf, stride)
+if not determine_bounding_box then
+	local function find_t(l, t, r, b, threshold, buf, stride)
 		for y = t, b do for x = l, r do
-			if buf[4 * x + y * stride + 3] > 0 then return x, y end
+			if buf[4 * x + y * stride + 3] > threshold then return x, y end
 		end end
 		return nil, b + 1;
 	end
-	local function find_b(l, t, r, b, buf, stride)
+	local function find_b(l, t, r, b, threshold, buf, stride)
 		for y = b, t + 1, -1 do for x = r, l, -1 do
-			if buf[4 * x + y * stride + 3] > 0 then return x, y end
+			if buf[4 * x + y * stride + 3] > threshold then return x, y end
 		end end
 		return nil, t;
 	end
-	local function find_l(l, t, r, b, buf, stride)
+	local function find_l(l, t, r, b, threshold, buf, stride)
 		for y = b, t + 1, -1 do for x = l, r - 1 do
-			if buf[4 * x + y * stride + 3] > 0 then r = x; break end
+			if buf[4 * x + y * stride + 3] > threshold then r = x; break end
 		end end
 		return r;
 	end
-	local function find_r(l, t, r, b, buf, stride)
+	local function find_r(l, t, r, b, threshold, buf, stride)
 		for y = t, b - 1 do for x = r, l + 1, -1 do
-			if buf[4 * x + y * stride + 3] > 0 then l = x; break end
+			if buf[4 * x + y * stride + 3] > threshold then l = x; break end
 		end end
 		return l;
 	end
-	function determine_bounding_box(l, t, r, b)
+	function determine_bounding_box(l, t, r, b, threshold)
 		local buf, stride = get_obj_edit(), 4 * get_buffer_stride();
+		threshold = math.min(math.max(math.floor(threshold), 0), 4095);
 		r, b = r - 1, b - 1;
 		local x1, x2;
 
 		-- determine the top.
-		x1, t = find_t(l, t, r, b, buf, stride);
+		x1, t = find_t(l, t, r, b, threshold, buf, stride);
 		if not x1 then return nil end -- entirely transparent.
 
 		-- then bottom.
-		x2, b = find_b(l, t, r, b, buf, stride);
+		x2, b = find_b(l, t, r, b, threshold, buf, stride);
 
 		-- next left and right.
 		if x2 then x1, x2 = math.min(x1, x2), math.max(x1, x2) else x2 = x1 end
-		l = find_l(l, t, x1, b, buf, stride);
-		r = find_r(x2, t, r, b, buf, stride);
+		l = find_l(l, t, x1, b, threshold, buf, stride);
+		r = find_r(x2, t, r, b, threshold, buf, stride);
 
 		-- return the bounding box (L, T, R, B).
 		return l, t, r + 1, b + 1;
@@ -270,7 +281,7 @@ local function resize_foursides(ext_l, ext_t, ext_r, ext_b)
 	return (ext_l - ext_r) / 2, (ext_t - ext_b) / 2;
 end
 local function crop_foursides(ext_l, ext_t, ext_r, ext_b, width, height)
-	local l, t, r, b = determine_bounding_box(0, 0, width, height);
+	local l, t, r, b = determine_bounding_box(0, 0, width, height, 0);
 	if not l then
 		-- all pixels are transparent.
 		obj.effect("クリッピング", "左", width, "上", height, "中心の位置を変更", 1);
@@ -279,22 +290,23 @@ local function crop_foursides(ext_l, ext_t, ext_r, ext_b, width, height)
 	r, b = width - r, height - b;
 	return resize_foursides(ext_l - l, ext_t - t, ext_r - r, ext_b - b);
 end
----現在オブジェクトの指定矩形内にある，不透明ピクセル全てを囲む最小の矩形を特定する．
+---現在オブジェクトの指定矩形内で，アルファ値がしきい値を超えるピクセル全てを囲む最小の矩形を特定する．
 ---引数の `left` が `nil` の場合はオブジェクト全体が検索の対象範囲となる．
----全てのピクセルが完全透明だった場合は `nil` を返す．
+---全てのピクセルがしきい値以下だった場合は `nil` を返す．
 ---座標の範囲は，左/上は inclusive, 右/下は exclusive, ピクセル単位で左上が原点．
----@param left integer? 不透明ピクセル検索範囲の左端の X 座標．
----@param top integer? 不透明ピクセル検索範囲の上端の Y 座標．
----@param right integer? 不透明ピクセル検索範囲の右端の X 座標．
----@param bottom integer? 不透明ピクセル検索範囲の下端の Y 座標．
+---@param left integer? ピクセル検索範囲の左端の X 座標．
+---@param top integer? ピクセル検索範囲の上端の Y 座標．
+---@param right integer? ピクセル検索範囲の右端の X 座標．
+---@param bottom integer? ピクセル検索範囲の下端の Y 座標．
+---@param threshold integer? 検索対象のアルファ値のしきい値，0 以上 4096 未満の整数．既定値は 0.
 ---@return integer? left 存在領域の左端の X 座標．
 ---@return integer top 存在領域の上端の Y 座標．
 ---@return integer right 存在領域の右端の X 座標．
 ---@return integer bottom 存在領域の下端の Y 座標．
-local function bounding_box(left, top, right, bottom)
+local function bounding_box(left, top, right, bottom, threshold)
 	if not left then left, top, right, bottom = 0, 0, obj.getpixel() end
 ---@diagnostic disable-next-line: return-type-mismatch
-	return determine_bounding_box(left, top, right, bottom);
+	return determine_bounding_box(left, top, right, bottom, threshold);
 end
 
 local function aspect2zoom(aspect)
@@ -548,7 +560,7 @@ local function warn_on_obj_effect(scene_idx, curr_frame, layer)
 	end
 	emit_warning(("[Inline Scene] %s, Frame: %d, Layer: %d\n\t")
 		:format(scene_disp(scene_idx), curr_frame, layer),
-		([=["%s" は obj.effect() の引数なし呼び出しを含むスクリプトの後続フィルタとして配置できません!]=])
+		([=["%s" は obj.effect() の引数なし呼び出しを含むスクリプトの後続フィルタとして配置できません! また，モーションブラー等の一部フィルタ効果は適用できません!]=])
 		:format(scr_name));
 end
 
@@ -614,7 +626,7 @@ local function crop_and_save(crop, ext_l, ext_t, ext_r, ext_b, name, scene_idx)
 
 	-- store to cache with the specified name.
 	if name then
-		local cache_name, metrics, _ = write_scene(tostring(name), scene_idx);
+		local cache_name, metrics, _, _ = write_scene(tostring(name), scene_idx);
 
 		obj.copybuffer(cache_name, "obj");
 		metrics:init();
@@ -745,7 +757,7 @@ end
 ---@param name string "Inline scene" の名前．
 ---@param scene_idx integer|string|nil 対象のシーン番号，または独自の名前．`nil` の場合は現在オブジェクトのシーン番号．
 local function save(name, scene_idx)
-	local cache_name, metrics, _ = write_scene(name, scene_idx);
+	local cache_name, metrics, _, _ = write_scene(name, scene_idx);
 
 	obj.copybuffer(cache_name, "obj");
 	if offscreen_drawn() then
@@ -768,7 +780,7 @@ end
 ---@param scene_idx integer|string|nil 対象のシーン番号，または独自の名前．`nil` の場合は現在オブジェクトのシーン番号．
 ---@return boolean success 正しく "inline scene" が読み込まれた場合は `true`, エラーなら `false`.
 local function recall(name, restore_metrics, curr_frame, scene_idx)
-	local cache_name, metrics, status = read_scene(name, scene_idx);
+	local cache_name, metrics, status, _ = read_scene(name, scene_idx);
 	if not status or (curr_frame and status ~= "new") then return false end
 	if not obj.copybuffer("obj", cache_name) then
 		emit_warning(("[Inline Scene] %s, Frame: %d, Layer: %d\n\t")
@@ -832,7 +844,7 @@ end
 ---@param blend integer|string|nil 合成モードを指定 `0`, `"加算"`, `"alpha_sub"` などが使える．`nil` だと通常の合成モード．
 ---@param scene_idx integer|string|nil 対象のシーン番号，または独自の名前．`nil` の場合は現在オブジェクトのシーン番号．
 local function combine(name, curr_frame, x, y, zoom, alpha, angle, loop, back, blend, scene_idx)
-	local cache_name, metrics, status = read_scene(name, scene_idx);
+	local cache_name, metrics, status, _ = read_scene(name, scene_idx);
 	if not status or (curr_frame and status ~= "new") then return end
 
 	local w, h = obj.getpixel();
