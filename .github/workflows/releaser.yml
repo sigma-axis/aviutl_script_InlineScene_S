@@ -31,6 +31,7 @@ jobs:
         mkdir pack
         cp *.anm pack
         cp *.obj pack
+        cp *.scn pack
         cp *.lua pack
         cp *.md pack
         cp LICENSE pack/LICENSE
