@@ -35,9 +35,16 @@
   - 拡張編集 0.93rc1 同梱の `lua51jit.dll` は***バージョンが古く既知のバグもあるため非推奨***です．
   - AviUtl のフォルダにある `lua51.dll` と置き換えてください．
 
+- **(推奨)** 余白除去σ (`CropBlank_S.eef`)
+
+  https://github.com/sigma-axis/aviutl_CropBlank_S
+
+  - 一部処理が高速化します．
+
+
 ## 導入方法
 
-以下のフォルダのいずれかに `@InlineScene_S.anm`, `@InlineScene_S.obj`, `InlineScene_S.lua` の 3 つのファイルをコピーしてください．
+以下のフォルダのいずれかに `@InlineScene_S.anm`, `@InlineScene_S.obj`, `@InlineScene_S.scn`, `InlineScene_S.lua` の 4 つのファイルをコピーしてください．
 
 1. `exedit.auf` のあるフォルダにある `script` フォルダ
 1. (1) のフォルダにある任意の名前のフォルダ
@@ -372,6 +379,23 @@ Inline scene の管理するキャッシュ名とその座標等を保持した�
     [`Inline Scene読み出し`](#inline-scene読み出し) の同名のものと同等の設定項目です．
 
 
+## シーンチェンジオブジェクトの詳細
+
+### `Inline Sceneシーン保存`
+
+Inline Scene のキャッシュ機能を利用した「シーンチェンジの素体」のようなオブジェクトです．シーンチェンジ前の画像をキャッシュとして保存します．
+
+`Inline Sceneシーン保存` の下のレイヤーに [`Inline Scene読み出し`](#inline-scene読み出し) を配置，これにフィルタ効果をかけて画面外に移動するアニメーションを設定するなどして，自由にシーンチェンジを組めます．
+
+`Inline Sceneシーン保存` と `Inline Scene読み出し` の間に `フレームバッファ` オブジェクトをはさんで，シーンチェンジ後の画像にも加工ができます．
+
+#### 設定値
+
+1.  `ILシーン名`
+
+    保存先の，`Inline Scene読み出し` などで使用できるキャッシュ名．初期値は `シーンチェンジ`.
+
+
 ## うまく動かない使い方
 
 [仕組み](#仕組み)で述べた通り，このスクリプトは AviUtl のメモリに直接介入することで実現しています．条件によってはこの介入が不具合を引き起こすこともあります．他にも AviUtl やスクリプトの仕様の都合上，意図しなかったり不自然に思える挙動になることもあるのでここで紹介します．
@@ -581,7 +605,7 @@ Inline scene の下段のレイヤーに正しく `Inline Sceneここまで` が
 
     ```lua
     --
-    -- VERSION: v1.00
+    -- VERSION: v1.10
     --
     ```
 
@@ -854,23 +878,24 @@ Inline scene のデータを破棄する．
 
 - 保存中 (`obj.getinfo("saving")` が `true`) の場合の戻り値は `false`.
 
-### `bounding_box(left, top, right, bottom)`
+### `bounding_box(left, top, right, bottom, threshold)`
 
-現在オブジェクトの指定矩形内にある，不透明ピクセル全てを囲む最小の矩形を特定する．
+現在オブジェクトの指定矩形内で，アルファ値がしきい値を超えるピクセル全てを囲む最小の矩形を特定する．
 
 |位置|名前|型|説明|
 |:---|:---:|:---:|:---|
-|引数 #1|`left`|integer\|nil|不透明ピクセル検索範囲の左端の X 座標．|
-|引数 #2|`top`|integer\|nil|不透明ピクセル検索範囲の上端の Y 座標．|
-|引数 #3|`right`|integer\|nil|不透明ピクセル検索範囲の右端の X 座標．|
-|引数 #4|`bottom`|integer\|nil|不透明ピクセル検索範囲の下端の Y 座標．|
+|引数 #1|`left`|integer\|nil|ピクセル検索範囲の左端の X 座標．|
+|引数 #2|`top`|integer\|nil|ピクセル検索範囲の上端の Y 座標．|
+|引数 #3|`right`|integer\|nil|ピクセル検索範囲の右端の X 座標．|
+|引数 #4|`bottom`|integer\|nil|ピクセル検索範囲の下端の Y 座標．|
+|引数 #5|`threshold`|integer\|nil|検索対象のアルファ値のしきい値，`0` 以上 `4096` 未満の整数．既定値は `0`.|
 |戻り値 #1|`left`|integer\|nil|存在領域の左端の X 座標．全てのピクセルが完全透明の場合は `nil`.|
 |戻り値 #2|`top`|integer|存在領域の上端の Y 座標．|
 |戻り値 #3|`right`|integer|存在領域の右端の X 座標．|
 |戻り値 #4|`bottom`|integer|存在領域の下端の Y 座標．|
 
 - 引数の `left` が `nil` の場合はオブジェクト全体が検索の対象範囲となる．
-- 全てのピクセルが完全透明だった場合は `nil` を返す．
+- 全てのピクセルがしきい値以下だった場合は `nil` を返す．
 - 座標の範囲は，左/上は inclusive (i.e. 指定値ちょうども範囲内), 右/下は exclusive (i.e. 指定値ちょうどは範囲外), ピクセル単位で左上が原点．
 
 ### `combine_aspect(zoom, aspect1, aspect2)`
@@ -912,6 +937,14 @@ Inline scene のデータを破棄する．
 
 ## 改版履歴
 
+- **v1.10** (2025-02-20)
+
+  - `余白除去σ` が導入されている場合，シーンの余白除去の処理に利用するよう変更．
+
+  - Lua の公開 API の `bounding_box()` 関数を拡張．(`余白除去σ` の `bounding_box()` 関数と同等の機能に．)
+
+  - シーンチェンジの `Inline Sceneシーン保存` を追加．更新の際は `@InlineScne_S.scn` も新規にコピーしてください．
+
 - **v1.00** (2024-12-13)
 
   - 初版．
@@ -925,7 +958,7 @@ Inline scene のデータを破棄する．
 
 The MIT License (MIT)
 
-Copyright (C) 2024 sigma-axis
+Copyright (C) 2024-2025 sigma-axis
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
