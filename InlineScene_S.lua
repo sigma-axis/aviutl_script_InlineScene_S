@@ -24,7 +24,7 @@ https://mit-license.org/
 ]]
 
 --
--- VERSION: v1.10
+-- VERSION: v1.11-beta1
 --
 
 --------------------------------
@@ -85,7 +85,7 @@ local get_render_cycle, get_is_playing,
 	get_scene_flags, set_scene_flags, get_obj_flags,
 	get_frame_buffer, get_obj_edit, get_buffer_stride,
 	get_current_frame, get_current_scene, get_scene_name, exfunc_bufcpy, exfunc_fill,
-	determine_bounding_box do
+	max_h_inline_scene, determine_bounding_box do
 
 	local h_aviutl = ffi.cast("uintptr_t", ffi.C.GetModuleHandleA(nil));
 	-- check for the version of aviutl.exe. (may be unnecessary; as patch.aul exist.)
@@ -107,7 +107,7 @@ local get_render_cycle, get_is_playing,
 	end
 
 	-- locate FilterProcInfo of exedit and other pointers.
-	local render_cycle = h_aviutl + 0x0a8c34;
+	local render_cycle, max_scene_w, max_scene_h = h_aviutl + 0x0a8c34, h_aviutl + 0x086444, h_aviutl + 0x08626c;
 	local efpip, scene_settings, is_playing, exfunc = h_exedit + 0x1b2b20, h_exedit + 0x177a50, h_exedit + 0x1a52e8, h_exedit + 0x0a41e0;
 	local efpip2 = ffi.cast("uint32_t**", efpip);
 	local function get_efpip_flag_ptr()
@@ -189,6 +189,12 @@ local get_render_cycle, get_is_playing,
 	-- uint32_t (*fill)(void* ycp, int32_t wo, int32_t ho, int32_t w, int32_t h, int16_t y, int16_t cb, int16_t cr, int16_t a, int32_t flag);
 	exfunc_fill = ffi.cast("uint32_t(__cdecl*)(void*, int32_t, int32_t, int32_t, int32_t, int16_t, int16_t, int16_t, int16_t, int32_t)",
 		exfunc2[0x48/4]);
+
+	-- determine maximum height for an inline scene.
+	local max_scene_w1, max_scene_h1, max_image_w1, _
+		= ffi.cast("int32_t*", max_scene_w)[0], ffi.cast("int32_t*", max_scene_h)[0], obj.getinfo("image_max");
+	max_h_inline_scene = math.floor(
+		(6 * (max_scene_w1 + 8) * max_scene_h1) / (8 * (max_image_w1 + 8)));
 
 	-- take advantage of CropBlank_S.eef if exists.
 	if ffi.C.GetModuleHandleA("CropBlank_S.eef") ~= nil then
@@ -584,6 +590,16 @@ local function warn_camera(scene_idx, curr_frame, layer)
 		([=["%s" はカメラ制御下には配置しないでください!]=]):format(scr_name));
 end
 
+local function warn_image_size(scene_idx, curr_frame, layer)
+	local scr_name = obj.getoption("script_name");
+	if scr_name == "" then
+		scr_name = [=[Begin()" の呼び出しを含む "スクリプト制御]=];
+	end
+	emit_warning(("[Inline Scene] %s, Frame: %d, Layer: %d\n\t")
+		:format(scene_disp(scene_idx), curr_frame, layer),
+		([=[AviUtl の環境設定の最大画像サイズが小さいため "アルファチャンネルあり" の "%s" が使えません! 高さがシーンの 4/3 倍以上必要です．詳しくは README を参照．]=]):format(scr_name));
+end
+
 ---"Inline scene" の状態を開始する．
 ---フレームバッファをキャッシュに退避し消去，一部フラグを書き換える．次の `End()` の呼び出しで復元される．
 ---tempbuffer は他データで上書きされるので注意．
@@ -605,6 +621,10 @@ local function begin_inline_scene(has_alpha)
 	end
 
 	local had_alpha, was_nesting = get_scene_flags();
+	if not had_alpha and has_alpha and obj.screen_h > max_h_inline_scene then
+		warn_image_size(get_current_scene(), get_current_frame(), obj.layer);
+		return;
+	end
 	local stack = query_stack(get_current_scene());
 
 	-- core process.
@@ -711,6 +731,10 @@ local function next_inline_scene(crop, ext_l, ext_t, ext_r, ext_b, name, has_alp
 	end
 
 	local had_alpha, _ = get_scene_flags();
+	if not had_alpha and has_alpha and obj.screen_h > max_h_inline_scene then
+		warn_image_size(get_current_scene(), get_current_frame(), obj.layer);
+		return;
+	end
 	local stack = query_stack(get_current_scene());
 
 	-- check the warning condition for the former inline scene.
