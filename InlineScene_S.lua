@@ -66,7 +66,7 @@ end
 if not _PATCH then
 	return error_mod [=[このスクリプトの実行には patch.aul が必要です!]=];
 end
-if not obj.getvalue("cx") then
+if obj.getvalue("x") and not obj.getvalue("cx") then
 	return error_mod [=[このスクリプトの実行には patch.aul の設定 patch.aul.json で "switch" -> "lua.getvalue" が true である必要があります!]=];
 end
 
